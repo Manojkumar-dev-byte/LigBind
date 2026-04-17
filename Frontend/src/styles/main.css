@@ -1,0 +1,359 @@
+/* ================= RESET ================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #050b18;
+  color: white;
+}
+
+/* ================= AUTH ================= */
+
+.auth-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 460px;
+  background: #111827;
+  padding: 42px;
+  border-radius: 22px;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.45);
+}
+
+.logo-box {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 22px;
+  border-radius: 18px;
+  background: linear-gradient(135deg,#00e5ff,#00c896);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 32px;
+}
+
+.auth-card h1 {
+  text-align: center;
+  font-size: 42px;
+  margin-bottom: 10px;
+}
+
+.subtext {
+  text-align: center;
+  color: #94a3b8;
+  margin-bottom: 28px;
+}
+
+.auth-card label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 18px;
+  border: none;
+  border-radius: 12px;
+  background: #1e293b;
+  color: white;
+}
+
+.auth-card button {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: #00c896;
+  color: #001018;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.bottom-text {
+  text-align: center;
+  margin-top: 18px;
+}
+
+.bottom-text a {
+  color: #00e5ff;
+  text-decoration: none;
+}
+
+/* ================= DASHBOARD ================= */
+
+.dashboard-shell {
+  padding: 35px 45px;
+}
+
+.dashboard-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.dashboard-topbar h1 {
+  font-size: 48px;
+  color: #00e5ff;
+}
+
+.dashboard-topbar p {
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.logout-btn {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #ef4444;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* ---------- GRID ---------- */
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+}
+
+.control-panel,
+.leaderboard-panel,
+.pick-card {
+  background: #111827;
+  border-radius: 22px;
+  padding: 24px;
+}
+
+/* ---------- LEFT ---------- */
+
+.control-panel h2 {
+  color: #00e5ff;
+  margin-bottom: 18px;
+}
+
+.control-panel label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.control-panel input,
+.control-panel textarea {
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: none;
+  border-radius: 12px;
+  background: #1e293b;
+  color: white;
+}
+
+.control-panel textarea {
+  min-height: 120px;
+}
+
+.primary-btn,
+.secondary-btn,
+.dock-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.primary-btn {
+  background: #00c896;
+  color: #001018;
+}
+
+.secondary-btn {
+  background: #00e5ff;
+  color: #001018;
+}
+
+.dock-btn {
+  background: #8b5cf6;
+  color: white;
+  margin-top: 10px;
+}
+
+/* ---------- MANUAL ---------- */
+
+.manual-box {
+  margin-top: 18px;
+}
+
+.manual-box h3 {
+  color: #00e5ff;
+  margin-bottom: 14px;
+}
+
+.manual-card {
+  background: #1e293b;
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+.score-label {
+  color: #00e5ff;
+  font-weight: 800;
+}
+
+.score-value {
+  color: #00c896;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+/* ---------- TABLE ---------- */
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panel-head span {
+  color: #94a3b8;
+}
+
+.table-head,
+.result-row {
+  display: grid;
+  grid-template-columns: 80px 1.4fr 120px 220px;
+  gap: 12px;
+  align-items: center;
+}
+
+.table-head {
+  padding: 14px 0;
+  border-bottom: 1px solid #1e293b;
+  color: #94a3b8;
+}
+
+.result-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.rank {
+  color: #00e5ff;
+  font-weight: bold;
+}
+
+.drug-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.drug-cell small {
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.bar-wrap {
+  background: #1e293b;
+  height: 10px;
+  border-radius: 20px;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg,#00e5ff,#00c896);
+}
+
+.bar-wrap small {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  color: #00e5ff;
+}
+
+/* ---------- TOP 3 ---------- */
+
+.top-picks {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.pick-card {
+  text-align: center;
+}
+
+.pick-card p {
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.pick-card h3 {
+  margin-bottom: 8px;
+}
+
+.pick-card h2 {
+  color: #00c896;
+  font-size: 30px;
+}
+
+/* ================= DOCKING PAGE ================= */
+
+.docking-viewer {
+  width: 100%;
+  height: 650px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #0f172a;
+  margin-top: 10px;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 1100px) {
+  .dashboard-layout,
+  .top-picks {
+    grid-template-columns: 1fr;
+  }
+
+  .table-head,
+  .result-row {
+    grid-template-columns: 70px 1fr 90px;
+  }
+
+  .bar-wrap {
+    display: none;
+  }
+
+  .dashboard-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
