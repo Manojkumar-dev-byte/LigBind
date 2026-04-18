@@ -1,54 +1,75 @@
-from fastapi import APIRouter
-from models.prediction import PredictionRequest
-from services.predictor import run_prediction
-from database import predictions_collection
+from io import StringIO
+
+import pandas as pd
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+
+from models.prediction import PredictionRequest, PredictionResponse
+from services.predictor import rank_protein_target
+from utils.disease_mapping import resolve_disease_to_protein
 
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
 
-# Manual Ranking
-@router.post("/")
+# Protein ranking
+@router.post("/rank", response_model=PredictionResponse)
 def predict(data: PredictionRequest):
-    results = run_prediction(data.disease, data.drugs)
+    try:
+        # Resolve disease to protein if disease_name is provided
+        protein_sequence = data.protein_sequence
+        if data.disease_name:
+            protein_sequence = resolve_disease_to_protein(data.disease_name)
+        elif not protein_sequence:
+            raise ValueError("Either protein_sequence or disease_name must be provided")
+        
+        results = rank_protein_target(
+            protein_sequence=protein_sequence,
+            top_n=data.top_n,
+            candidate_smiles=data.candidate_smiles,
+        )
 
-    predictions_collection.insert_one({
-        "mode": "manual",
-        "disease": data.disease,
-        "drugs": data.drugs,
-        "results": results
-    })
+        return results
 
-    return {
-        "disease": data.disease,
-        "rankings": results
-    }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Prediction failed") from exc
 
 
-# Auto Top 10 Drugs
-@router.get("/top10/{disease}")
-def top10_drugs(disease: str):
+@router.post("/csv")
+def predict_csv(data: PredictionRequest):
+    try:
+        # Resolve disease to protein if disease_name is provided
+        protein_sequence = data.protein_sequence
+        if data.disease_name:
+            protein_sequence = resolve_disease_to_protein(data.disease_name)
+        elif not protein_sequence:
+            raise ValueError("Either protein_sequence or disease_name must be provided")
+        
+        results = rank_protein_target(
+            protein_sequence=protein_sequence,
+            top_n=data.top_n,
+            candidate_smiles=data.candidate_smiles,
+        )
 
-    drug_library = [
-        "Gefitinib",
-        "Erlotinib",
-        "Osimertinib",
-        "Imatinib",
-        "Doxorubicin",
-        "Cisplatin",
-        "Paclitaxel",
-        "Tamoxifen",
-        "Sorafenib",
-        "Metformin",
-        "Docetaxel",
-        "Trastuzumab",
-        "Sunitinib",
-        "Capecitabine",
-        "Lapatinib"
-    ]
+        csv_buffer = StringIO()
+        pd.DataFrame(results["rankings"]).to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)
 
-    results = run_prediction(disease, drug_library)
+        filename = "ligbind_rankings.csv"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
 
-    return {
-        "disease": disease,
-        "top_drugs": results[:10]
-    }
+        return StreamingResponse(
+            csv_buffer,
+            media_type="text/csv",
+            headers=headers,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="CSV export failed") from exc

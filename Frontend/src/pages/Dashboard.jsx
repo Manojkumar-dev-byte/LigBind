@@ -1,15 +1,60 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useEffect, useState } from "react";
+
+import PredictForm from "../components/PredictForm";
+import ResultCard from "../components/ResultCard";
+import { downloadRankingsCsv, rankProteinTarget } from "../services/api";
 
 function Dashboard() {
-  const [disease, setDisease] = useState("");
-  const [drugs, setDrugs] = useState("");
-  const [results, setResults] = useState([]);
-  const [manualResults, setManualResults] = useState([]);
+  const [proteinSequence, setProteinSequence] = useState("");
+  const [topN, setTopN] = useState(10);
+  const [candidateSmiles, setCandidateSmiles] = useState("");
+  const [rankings, setRankings] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  // Auto scale for normal 100% browser zoom
   const [scale, setScale] = useState(1);
+
+  const comparisonRows = rankings.slice(0, Math.min(5, rankings.length));
+  const comparisonAffinities = comparisonRows.map((item) => item.predicted_affinity);
+  const comparisonBest = comparisonAffinities.length ? Math.min(...comparisonAffinities) : 0;
+  const comparisonWorst = comparisonAffinities.length ? Math.max(...comparisonAffinities) : 0;
+  const comparisonRange = Math.max(comparisonWorst - comparisonBest, 0);
+
+  const pieData = (() => {
+    const values = rankings.slice(0, Math.min(topN, rankings.length)).map((item) => item.predicted_affinity);
+    if (!values.length) {
+      return { best: 0, middle: 0, lower: 0 };
+    }
+
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = maxValue - minValue;
+    if (range === 0) {
+      return { best: values.length, middle: 0, lower: 0 };
+    }
+
+    const edge1 = minValue + range / 3;
+    const edge2 = minValue + (2 * range) / 3;
+    let best = 0;
+    let middle = 0;
+    let lower = 0;
+
+    values.forEach((value) => {
+      if (value <= edge1) {
+        best += 1;
+      } else if (value <= edge2) {
+        middle += 1;
+      } else {
+        lower += 1;
+      }
+    });
+
+    return { best, middle, lower };
+  })();
+
+  const pieTotal = pieData.best + pieData.middle + pieData.lower;
+  const pieBestPct = pieTotal ? (pieData.best / pieTotal) * 100 : 0;
+  const pieMiddlePct = pieTotal ? (pieData.middle / pieTotal) * 100 : 0;
+  const pieLowerPct = pieTotal ? (pieData.lower / pieTotal) * 100 : 0;
 
   useEffect(() => {
     const updateScale = () => {
@@ -28,57 +73,88 @@ function Dashboard() {
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
-  const predictTop10 = async () => {
-    if (!disease.trim()) return alert("Enter disease name");
+  const buildPayload = (inputValue, inputMode) => {
+    const smilesList = candidateSmiles
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    const payload = {
+      top_n: topN,
+    };
+
+    if (inputMode === "disease") {
+      payload.disease_name = inputValue.trim();
+    } else {
+      payload.protein_sequence = inputValue.trim();
+    }
+
+    if (smilesList.length > 0) {
+      payload.candidate_smiles = smilesList;
+    }
+
+    return payload;
+  };
+
+  const predictRankings = async (inputValue, inputMode) => {
+    if (!inputValue || !inputValue.trim()) {
+      alert(`Enter a ${inputMode === "disease" ? "disease name" : "protein sequence"}`);
+      return;
+    }
 
     try {
       setLoading(true);
-      const res = await axios.get(
-        `http://127.0.0.1:8000/predict/top10/${disease}`
-      );
-      setResults(res.data.top_drugs);
-    } catch {
-      alert("Failed to fetch results");
+      const response = await rankProteinTarget(buildPayload(inputValue, inputMode));
+      setRankings(response.rankings || []);
+      setSummary(response);
+    } catch (error) {
+      const message = error?.response?.data?.detail || "Failed to fetch results";
+      alert(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const predictAffinity = async () => {
-    if (!disease.trim()) return alert("Enter disease");
-    if (!drugs.trim()) return alert("Enter drugs");
+  const exportCsv = async () => {
+    if (!summary && !proteinSequence.trim()) {
+      alert("First run ranking, then export CSV");
+      return;
+    }
 
     try {
       setLoading(true);
-
-      const drugList = drugs
+      const payload = {
+        top_n: topN,
+      };
+      if (summary?.protein_sequence) {
+        payload.protein_sequence = summary.protein_sequence;
+      } else if (proteinSequence.trim()) {
+        payload.protein_sequence = proteinSequence.trim();
+      }
+      const smilesList = candidateSmiles
         .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d !== "");
-
-      const res = await axios.post(
-        "http://127.0.0.1:8000/predict/",
-        { disease, drugs: drugList }
-      );
-
-      setManualResults(res.data.rankings);
-    } catch {
-      alert("Prediction failed");
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+      if (smilesList.length > 0) {
+        payload.candidate_smiles = smilesList;
+      }
+      
+      const blob = await downloadRankingsCsv(payload);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ligbind_rankings.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const message = error?.response?.data?.detail || "CSV export failed";
+      alert(message);
     } finally {
       setLoading(false);
     }
   };
-
-  const runDocking = (drug) => {
-    window.location.href = `/docking?drug=${drug}&disease=${disease}`;
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
-  };
-
-  const top3 = results.slice(0, 3);
 
   return (
     <div
@@ -93,7 +169,6 @@ function Dashboard() {
         overflowX: "hidden",
       }}
     >
-      {/* FIT TO 100% SCREEN */}
       <div
         style={{
           width: "100%",
@@ -102,19 +177,13 @@ function Dashboard() {
           transformOrigin: "top center",
         }}
       >
-        {/* TOPBAR */}
         <div className="dashboard-topbar">
           <div>
             <h1>LigBind Discovery</h1>
-            <p>AI Powered Drug Candidate Ranking Platform</p>
+            <p>Protein-sequence driven drug ranking and export</p>
           </div>
-
-          <button className="logout-btn" onClick={logout}>
-            Logout
-          </button>
         </div>
 
-        {/* MAIN */}
         <div
           style={{
             display: "grid",
@@ -123,207 +192,75 @@ function Dashboard() {
             alignItems: "start",
           }}
         >
-          {/* LEFT */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
-          >
-            <div className="control-panel">
-              <h2>Target Selection</h2>
+          <div className="left-column-stack">
+            <PredictForm
+              proteinSequence={proteinSequence}
+              setProteinSequence={setProteinSequence}
+              topN={topN}
+              setTopN={setTopN}
+              candidateSmiles={candidateSmiles}
+              setCandidateSmiles={setCandidateSmiles}
+              loading={loading}
+              onSubmit={predictRankings}
+            />
 
-              <label>Disease Name</label>
-              <input
-                type="text"
-                value={disease}
-                placeholder="Lung Cancer / Diabetes"
-                onChange={(e) => setDisease(e.target.value)}
-              />
+            <div className="left-analytics-card">
+              <h3>Quick Comparison</h3>
+              {!comparisonRows.length ? (
+                <p className="subtext" style={{ textAlign: "left", marginBottom: 0 }}>
+                  Run ranking to see bar and pie comparison.
+                </p>
+              ) : (
+                <>
+                  <div>
+                    {comparisonRows.map((item) => {
+                      const widthPct = comparisonRange === 0
+                        ? 100
+                        : ((comparisonWorst - item.predicted_affinity) / comparisonRange) * 100;
 
-              <label>Drug Names (Optional)</label>
-              <textarea
-                value={drugs}
-                placeholder="Gefitinib, Erlotinib"
-                onChange={(e) => setDrugs(e.target.value)}
-                style={{ minHeight: "95px" }}
-              />
-
-              <button
-                className="primary-btn"
-                onClick={predictTop10}
-                style={{ marginBottom: "10px" }}
-              >
-                {loading ? "Analyzing..." : "View Top 10 Drugs"}
-              </button>
-
-              <button
-                className="secondary-btn"
-                onClick={predictAffinity}
-              >
-                Predict Affinity Score
-              </button>
-            </div>
-
-            {manualResults.length > 0 && (
-              <div className="leaderboard-panel">
-                <div className="panel-head">
-                  <h2>User Input Drug Ranking</h2>
-                  <span>{manualResults.length} Results</span>
-                </div>
-
-                {manualResults.map((item, index) => (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "50px 1fr 70px 105px",
-                      gap: "8px",
-                      alignItems: "center",
-                      padding: "12px 0",
-                      borderBottom:
-                        "1px solid rgba(255,255,255,0.06)",
-                    }}
-                    key={index}
-                  >
-                    <span className="rank">#{index + 1}</span>
-
-                    <div className="drug-cell">
-                      <strong>{item.drug}</strong>
-                      <small>User Candidate</small>
-                    </div>
-
-                    <span>{item.score}</span>
-
-                    <button
-                      className="dock-btn"
-                      style={{
-                        fontSize: "11px",
-                        padding: "8px",
-                        width: "100%",
-                      }}
-                      onClick={() => runDocking(item.drug)}
-                    >
-                      Docking
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT */}
-          <div className="leaderboard-panel">
-            <div className="panel-head">
-              <h2>Top 10 Recommended Drugs</h2>
-              <span>{results.length} Results</span>
-            </div>
-
-            <div className="table-head">
-              <span>Rank</span>
-              <span>Drug Candidate</span>
-              <span>Affinity</span>
-              <span>Binding %</span>
-              <span>Action</span>
-            </div>
-
-            {results.map((item, index) => {
-              const percent = Math.max(100 - index * 2, 82);
-
-              return (
-                <div className="result-row" key={index}>
-                  <span className="rank">#{index + 1}</span>
-
-                  <div className="drug-cell">
-                    <strong>{item.drug}</strong>
-                    <small>AI Suggested Candidate</small>
+                      return (
+                        <div key={`left-cmp-${item.rank}`} className="left-cmp-row">
+                          <div className="left-cmp-head">
+                            <span>#{item.rank} {item.drug_name || `Drug ${item.drug_index}`}</span>
+                            <strong>{item.predicted_affinity.toFixed(4)}</strong>
+                          </div>
+                          <div className="bar-wrap">
+                            <div className="bar-fill" style={{ width: `${Math.max(8, Math.min(100, widthPct))}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  <span>{item.score}</span>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      minWidth: "150px",
-                    }}
-                  >
+                  <div className="left-pie-layout">
                     <div
+                      className="left-pie"
                       style={{
-                        width: "100px",
-                        height: "8px",
-                        borderRadius: "20px",
-                        background: "#1c2433",
-                        overflow: "hidden",
+                        background: `conic-gradient(#00c896 0% ${pieBestPct}%, #00e5ff ${pieBestPct}% ${pieBestPct + pieMiddlePct}%, #334155 ${pieBestPct + pieMiddlePct}% 100%)`,
                       }}
-                    >
-                      <div
-                        style={{
-                          width: `${percent}%`,
-                          height: "100%",
-                          background:
-                            "linear-gradient(90deg,#3b82f6,#06b6d4)",
-                        }}
-                      />
+                    ></div>
+                    <div className="left-pie-legend">
+                      <div><span className="dot best"></span>Best tier: {pieData.best}</div>
+                      <div><span className="dot mid"></span>Middle tier: {pieData.middle}</div>
+                      <div><span className="dot low"></span>Lower tier: {pieData.lower}</div>
                     </div>
-
-                    <small
-                      style={{
-                        color: "#00e5ff",
-                        fontWeight: "600",
-                      }}
-                    >
-                      {percent}%
-                    </small>
                   </div>
-
-                  <button
-                    className="dock-btn"
-                    onClick={() => runDocking(item.drug)}
-                  >
-                    Docking
-                  </button>
-                </div>
-              );
-            })}
+                </>
+              )}
+            </div>
           </div>
+
+          <ResultCard
+            rankings={rankings}
+            topN={topN}
+            onDownloadCsv={exportCsv}
+          />
         </div>
 
-        {/* TOP PICKS */}
-        {top3.length > 0 && (
-          <div
-            className="top-picks"
-            style={{
-              marginTop: "20px",
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit,minmax(240px,1fr))",
-              gap: "14px",
-            }}
-          >
-            {top3.map((item, index) => (
-              <div className="pick-card" key={index}>
-                <p>
-                  {index === 0
-                    ? "🥇 Champion"
-                    : index === 1
-                    ? "🥈 Runner Up"
-                    : "🥉 Third Best"}
-                </p>
-
-                <h3>{item.drug}</h3>
-                <h2>{item.score}</h2>
-
-                <button
-                  className="dock-btn"
-                  onClick={() => runDocking(item.drug)}
-                >
-                  Docking
-                </button>
-              </div>
-            ))}
+        {summary && (
+          <div style={{ marginTop: "18px", color: "#94a3b8" }}>
+            Top affinity: <strong style={{ color: "white" }}>{summary.rankings?.[0]?.predicted_affinity?.toFixed(4)}</strong>
+            {summary.rankings?.length ? ` | Total candidates ranked: ${summary.rankings.length}` : ""}
           </div>
         )}
       </div>
